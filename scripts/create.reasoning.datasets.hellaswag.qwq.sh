@@ -1,61 +1,49 @@
 #!/bin/bash
-#SBATCH -p gpu_long
+#SBATCH -p gpu
 #SBATCH -c 2
-#SBATCH -t 100:00:00
-#SBATCH --gres=gpu:6000:1
-#SBATCH--account=is-nlp
-#SBATCH --job-name=qwq.hellaswag
-#SBATCH -o logs/slurm-%x-%j.log
+#SBATCH --gres=gpu:1
+#SBATCH --job-name=0289_qwq_hellaswag
+#SBATCH -o logs/%x-%A_%a.log
+#SBATCH --array=0-3
 
 set -eu
 source .venv/bin/activate
 
-# model_name=Qwen/Qwen3-30B-A3B-Instruct-2507
-# model_name=Qwen/QwQ-32B
-model_name=openai/gpt-oss-20b
+# model settings
+model_name=Qwen/QwQ-32B
 model_suffix=${model_name##*/}
 
-qa=hellaswag
+qa=mathqa
 input_file=data/model_input/${qa}.json
-output_file=data/reasoning_datasets_before_split/${qa}.${model_suffix}.json
-mkdir -p $(dirname ${output_file})
 
+# batch settings
+BATCH_SIZE=50
+BASE_START=400
+SHARD_ID=${SLURM_ARRAY_TASK_ID}
 
-# TODO:
-# 20件ずつのbatchに
-# job arrayで並列実行
-# ファイルの保存名も変える
+START_IDX=$(( BASE_START + SHARD_ID * BATCH_SIZE ))
+END_IDX=$(( START_IDX + BATCH_SIZE ))
 
+output_file=data/reasoning_datasets_before_split/${qa}.${model_suffix}.${START_IDX}.${END_IDX}.json
+mkdir -p "$(dirname "${output_file}")"
 
-echo QA: ${qa}
-echo input_file: ${input_file}
-echo output_file: ${output_file}
-echo model_name: ${model_name}
-
-# python src/create.reasoning.datasets.py \
-#     --input_file ${input_file} \
-#     --model_name ${model_name} \
-#     --output_file ${output_file} \
-#     --seed 42 \
-#     --use_4bit \
-#     --debug_sample_num 400 \
-#     --debug
-
-model_name=openai/gpt-oss-20b
-model_suffix=${model_name##*/}
-
-qa=hellaswag
-input_file=data/model_input/${qa}.json
-output_file=data/reasoning_datasets_before_split/${qa}.${model_suffix}.json
-mkdir -p $(dirname ${output_file})
+echo "QA: ${qa}"
+echo "Model: ${model_name}"
+echo "Input file: ${input_file}"
+echo "Output file: ${output_file}"
+echo "Shard ID: ${SHARD_ID}"
+echo "Start idx: ${START_IDX}"
+echo "End idx: ${END_IDX}"
 
 python src/create.reasoning.datasets.py \
-    --input_file ${input_file} \
-    --model_name ${model_name} \
-    --output_file ${output_file} \
+    --input_file "${input_file}" \
+    --model_name "${model_name}" \
+    --output_file "${output_file}" \
     --seed 42 \
+    --use_4bit \
+    --debug \
     --debug_sample_num 400 \
-    --debug
+    --start_idx "${START_IDX}" \
+    --end_idx "${END_IDX}"
 
-
-echo Done
+echo "Done ${START_IDX}-${END_IDX}"

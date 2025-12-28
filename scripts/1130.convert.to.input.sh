@@ -9,9 +9,9 @@ project=$(pwd)
 model_names=(
     # Llama-3.3-70B-Instruct
     # Qwen2.5-72B-Instruct
-    # QwQ-32B
-    # gpt-oss-20b
-    Phi-4-reasoning
+    QwQ-32B
+    gpt-oss-20b
+    # Phi-4-reasoning
 )
 qas=(
     mathqa

@@ -1,10 +1,9 @@
 from pathlib import Path
-from utils import load_jsonl, save_jsonl, load_json
 
-
+from utils import load_json
 
 # model_name="Llama-3.3-70B-Instruct"
-model_name="Qwen2.5-72B-Instruct"
+model_name = "Qwen2.5-72B-Instruct"
 # model_name="Phi-4-reasoning"
 
 
@@ -13,28 +12,29 @@ qa = "mathqa"
 
 correct_or_incorrect = "correct"
 
-input_file = Path(f'data/reasoning_datasets_after_split/{qa}.{model_name}.{correct_or_incorrect}.json')
+input_file = Path(
+    f"data/reasoning_datasets_after_split/{qa}.{model_name}.{correct_or_incorrect}.json"
+)
 data = load_json(input_file)
 
 for i, item in enumerate(data):
-    question = item['question']
-    candidates = item['candidates']
-    gold = item['gold']
-    generated_reasoning = item['reasoning']
+    question = item["question"]
+    candidates = item["candidates"]
+    gold = item["gold"]
+    generated_reasoning = item["reasoning"]
 
-    print(f'Question {i+1}: {question}')
-    print('Choices:')
+    print(f"Question {i + 1}: {question}")
+    print("Choices:")
     for idx, candidate in enumerate(candidates):
-        print(f'  ({chr(65 + idx)}) {candidate}')
-    print(f'Answer: {gold}')
+        print(f"  ({chr(65 + idx)}) {candidate}")
+    print(f"Answer: {gold}")
 
-    print('Generated Reasoning Steps:')
+    print("Generated Reasoning Steps:")
     for step_info in generated_reasoning:
-        step_num = step_info['step']
-        reasoning_text = step_info['reasoning']
-        print(f'  Step {step_num}: {reasoning_text}')
-    print('---')
-
+        step_num = step_info["step"]
+        reasoning_text = step_info["reasoning"]
+        print(f"  Step {step_num}: {reasoning_text}")
+    print("---")
 
 
 # qa="mathqa"

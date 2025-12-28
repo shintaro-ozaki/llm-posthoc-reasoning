@@ -1,17 +1,15 @@
 #!/bin/bash
-#SBATCH -p gpu_long
+#SBATCH -p gpu
 #SBATCH -c 2
-#SBATCH -t 100:00:00
-#SBATCH --gres=gpu:6000:1
-#SBATCH --account=is-nlp
-#SBATCH --job-name=qwq.hellaswag
-#SBATCH -o logs/slurm-%x-%A_%a.log
-#SBATCH --array=0-19
-
+#SBATCH --gres=gpu:1
+#SBATCH --job-name=0289_qwq_hellaswag
+#SBATCH -o logs/%x-%A_%a.log
+#SBATCH --array=0-3
+#SBATCH  --nodelist=gpu-node4
 set -eu
 source .venv/bin/activate
 
-# model_name=Qwen/Qwen3-30B-A3B-Instruct-2507
+# model settings
 model_name=Qwen/QwQ-32B
 model_suffix=${model_name##*/}
 
@@ -19,10 +17,11 @@ qa=hellaswag
 input_file=data/model_input/${qa}.json
 
 # batch settings
-BATCH_SIZE=20
+BATCH_SIZE=50
+BASE_START=800
 SHARD_ID=${SLURM_ARRAY_TASK_ID}
 
-START_IDX=$(( SHARD_ID * BATCH_SIZE ))
+START_IDX=$(( BASE_START + SHARD_ID * BATCH_SIZE ))
 END_IDX=$(( START_IDX + BATCH_SIZE ))
 
 output_file=data/reasoning_datasets_before_split/${qa}.${model_suffix}.${START_IDX}.${END_IDX}.json

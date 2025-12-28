@@ -1,38 +1,47 @@
-from pathlib import Path
 import argparse
 import random
+import logging
+from pathlib import Path
+
 import torch
-
 from dotenv import load_dotenv
-from loguru import logger
+from torch.cuda import OutOfMemoryError
 from tqdm import tqdm
-
 from transformers import (
-    AutoTokenizer,
     AutoModelForCausalLM,
+    AutoTokenizer,
     BitsAndBytesConfig,
     GenerationConfig,
 )
 
 from prompts import convert_reasoning_prompt
 from utils import load_json, save_json, seed_everything
-from torch.cuda import OutOfMemoryError
-from loguru import logger
 
 load_dotenv()
 
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
+    datefmt="%m/%d/%Y %H:%M:%S",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input_file', type=Path, default=Path('data/MathQA/test.json'))
-    parser.add_argument('--model_name', type=str, required=True)
-    parser.add_argument('--output_file', type=Path, required=True)
-    parser.add_argument('--debug', action='store_true')
-    parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--use_4bit', action='store_true')
-    parser.add_argument('--debug_sample_num', type=int, default=10)
-    parser.add_argument('--start_idx', type=int, default=0)
-    parser.add_argument('--end_idx', type=int, default=-1)
+    parser.add_argument(
+        "--input_file", type=Path, default=Path("data/MathQA/test.json")
+    )
+    parser.add_argument("--model_name", type=str, required=True)
+    parser.add_argument("--output_file", type=Path, required=True)
+    parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--use_4bit", action="store_true")
+    parser.add_argument("--debug_sample_num", type=int, default=10)
+    parser.add_argument("--start_idx", type=int, default=0)
+    parser.add_argument("--end_idx", type=int, default=-1)
     return parser.parse_args()
+
 
 def initialize_model(model_name, use_4bit):
     if use_4bit:
@@ -64,20 +73,18 @@ def initialize_model(model_name, use_4bit):
     model.eval()
     return model, tokenizer
 
+
 def build_qa_block(item):
     question = item["question"].strip()
     candidates = item["candidates"]
 
-    alphabet = ["A", "B", "C", "D", "E"][:len(candidates)]
+    alphabet = ["A", "B", "C", "D", "E"][: len(candidates)]
     candidates_str = " ".join(
         f"({alphabet[i]}) {candidates[i]}" for i in range(len(candidates))
     )
 
-    return (
-        f"Question: {question}\n"
-        f"Candidates: {candidates_str}\n"
-        f"Answer:"
-    )
+    return f"Question: {question}\nCandidates: {candidates_str}\nAnswer:"
+
 
 @torch.no_grad()
 def generate_reasoning(
@@ -142,10 +149,7 @@ def force_decode_choice(
     cand_logits = next_logits[cand_ids]
     probs = torch.softmax(cand_logits, dim=0)
 
-    choice_probs = {
-        c: probs[i].item()
-        for i, c in enumerate(choices)
-    }
+    choice_probs = {c: probs[i].item() for i, c in enumerate(choices)}
     pred_choice = max(choice_probs, key=choice_probs.get)
 
     return pred_choice, choice_probs
@@ -162,15 +166,15 @@ def main():
 
     args.output_file.parent.mkdir(parents=True, exist_ok=True)
     input_data = load_json(args.input_file)
+    if args.start_idx != 0 or args.end_idx != -1:
+        input_data = input_data[args.start_idx : args.end_idx]
+
     if args.debug:
         random.seed(args.seed)
         input_data = random.sample(
             input_data,
             min(len(input_data), args.debug_sample_num),
         )
-
-    if args.start_idx != 0 or args.end_idx != -1:
-        input_data = input_data[args.start_idx:args.end_idx]
 
     output_data = []
 
@@ -188,20 +192,13 @@ def main():
             )
 
             reasoning_text = (
-                full_text
-                .replace(prompt, "")
-                .replace("</think>", "")
-                .strip()
+                full_text.replace(prompt, "").replace("</think>", "").strip()
             )
             logger.info(f"Generated reasoning:\n{reasoning_text}")
 
-            alphabet = ["A", "B", "C", "D", "E"][:len(item["candidates"])]
+            alphabet = ["A", "B", "C", "D", "E"][: len(item["candidates"])]
 
-            force_prompt = (
-                prompt
-                + reasoning_text
-                + "\nSo, the answer is "
-            )
+            force_prompt = prompt + reasoning_text + "\nSo, the answer is "
 
             pred, choice_probs = force_decode_choice(
                 model=model,
@@ -210,14 +207,16 @@ def main():
                 choices=alphabet,
             )
 
-            output_data.append({
-                "question": item["question"],
-                "candidates": item["candidates"],
-                "gold": item["gold"].strip().upper(),
-                "reasoning": reasoning_text,
-                "pred": pred,
-                "choice_probs": choice_probs,
-            })
+            output_data.append(
+                {
+                    "question": item["question"],
+                    "candidates": item["candidates"],
+                    "gold": item["gold"].strip().upper(),
+                    "reasoning": reasoning_text,
+                    "pred": pred,
+                    "choice_probs": choice_probs,
+                }
+            )
         except OutOfMemoryError:
             logger.error("OutOfMemoryError: Skipping this example.")
             continue
